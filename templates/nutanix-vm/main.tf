@@ -28,7 +28,7 @@ data "nutanix_cluster" "this" {
 }
 
 data "nutanix_subnet" "this" {
-  subnet_name = local.subnet_name
+  subnet_id = local.subnet_uuid
 }
 
 data "nutanix_image" "this" {
