@@ -1,0 +1,51 @@
+---
+- name: Configuration de base
+  hosts: all
+  become: true
+  gather_facts: false
+  vars:
+    paquets_de_base:
+      Debian: [curl, vim, chrony]
+      RedHat: [vim-enhanced, chrony]
+    service_horloge:
+      Debian: chrony
+      RedHat: chronyd
+  tasks:
+    - name: Attendre que la VM soit joignable
+      ansible.builtin.wait_for_connection:
+        timeout: 300
+
+    - name: Attendre la fin de cloud-init
+      ansible.builtin.command: cloud-init status --wait
+      changed_when: false
+      failed_when: false
+
+    - name: Lire les informations du système
+      ansible.builtin.setup:
+
+    - name: Mettre à jour la liste des paquets
+      ansible.builtin.apt:
+        update_cache: true
+        cache_valid_time: 3600
+      when: ansible_facts['os_family'] == 'Debian'
+
+    - name: Installer les outils de base
+      ansible.builtin.package:
+        name: "{{ paquets_de_base[ansible_facts['os_family']] }}"
+        state: present
+
+    - name: Activer la synchronisation de l'heure
+      ansible.builtin.service:
+        name: "{{ service_horloge[ansible_facts['os_family']] }}"
+        state: started
+        enabled: true
+
+    - name: Régler le fuseau horaire
+      ansible.builtin.command: timedatectl set-timezone Europe/Paris
+      changed_when: false
+
+    - name: Enregistrer les informations du portail
+      ansible.builtin.copy:
+        dest: /etc/portail-vm.json
+        mode: "0644"
+        content: "{{ {'nom': vm_name, 'taille': taille, 'profil': profil, 'demandeur': demandeur} | to_nice_json }}\n"

@@ -1,0 +1,31 @@
+---
+- name: Appliquer la configuration de base
+  ansible.builtin.import_playbook: base.yml
+
+- name: Configuration du serveur web
+  hosts: all
+  become: true
+  tasks:
+    - name: Installer Nginx
+      ansible.builtin.package:
+        name: nginx
+        state: present
+
+    - name: Démarrer Nginx
+      ansible.builtin.service:
+        name: nginx
+        state: started
+        enabled: true
+
+    - name: Lire l'état des services
+      ansible.builtin.service_facts:
+
+    - name: Ouvrir le port HTTP dans firewalld
+      ansible.builtin.command: firewall-cmd --permanent --add-service=http
+      changed_when: false
+      when: ansible_facts['services'].get('firewalld.service', {}).get('state') == 'running'
+
+    - name: Recharger firewalld
+      ansible.builtin.command: firewall-cmd --reload
+      changed_when: false
+      when: ansible_facts['services'].get('firewalld.service', {}).get('state') == 'running'

@@ -1,0 +1,18 @@
+---
+- name: Appliquer la configuration de base
+  ansible.builtin.import_playbook: base.yml
+
+- name: Configuration de la base de données
+  hosts: all
+  become: true
+  tasks:
+    - name: Installer MariaDB
+      ansible.builtin.package:
+        name: mariadb-server
+        state: present
+
+    - name: Démarrer MariaDB
+      ansible.builtin.service:
+        name: mariadb
+        state: started
+        enabled: true
