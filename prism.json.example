@@ -1,0 +1,5 @@
+{
+  "endpoint": "prism-central.exemple.local",
+  "username": "svc-manageiq",
+  "password": "A_REMPLACER"
+}

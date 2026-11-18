@@ -1,0 +1,57 @@
+---
+- name: Supprimer une VM Nutanix avec OpenTofu
+  hosts: localhost
+  connection: local
+  gather_facts: false
+
+  vars:
+    tofu_bin: /usr/local/bin/tofu
+    poc_root: /var/lib/manageiq-poc
+    service_id: "{{ manageiq.service | basename }}"
+    stack_dir: "{{ poc_root }}/stacks/{{ service_id }}"
+
+  environment:
+    HOME: "{{ poc_root }}"
+    TF_IN_AUTOMATION: "1"
+    TF_INPUT: "0"
+    TF_PLUGIN_CACHE_DIR: "{{ poc_root }}/plugin-cache"
+
+  tasks:
+    - name: Vérifier la demande
+      ansible.builtin.assert:
+        that:
+          - manageiq is defined
+          - manageiq.service is defined
+        fail_msg: "Identifiant du service ManageIQ absent."
+        quiet: true
+
+    - name: Rechercher l'état OpenTofu du service
+      ansible.builtin.stat:
+        path: "{{ stack_dir }}/terraform.tfstate"
+      register: tofu_state
+
+    - name: Terminer si aucune ressource n'a été créée
+      ansible.builtin.debug:
+        msg: "Aucun état OpenTofu pour {{ manageiq.service }} : rien à supprimer."
+      when: not tofu_state.stat.exists
+
+    - name: Arrêter le playbook si aucune ressource n'a été créée
+      ansible.builtin.meta: end_play
+      when: not tofu_state.stat.exists
+
+    - name: Initialiser OpenTofu
+      ansible.builtin.command:
+        argv: ["{{ tofu_bin }}", init, -no-color]
+        chdir: "{{ stack_dir }}"
+      changed_when: false
+
+    - name: Supprimer la VM
+      ansible.builtin.command:
+        argv: ["{{ tofu_bin }}", destroy, -auto-approve, -no-color]
+        chdir: "{{ stack_dir }}"
+      changed_when: true
+
+    - name: Nettoyer le dossier du service
+      ansible.builtin.file:
+        path: "{{ stack_dir }}"
+        state: absent

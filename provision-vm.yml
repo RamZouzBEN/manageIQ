@@ -1,0 +1,75 @@
+---
+- name: Créer une VM Nutanix avec OpenTofu
+  hosts: localhost
+  connection: local
+  gather_facts: false
+
+  vars:
+    tofu_bin: /usr/local/bin/tofu
+    poc_root: /var/lib/manageiq-poc
+    service_id: "{{ manageiq.service | basename }}"
+    stack_dir: "{{ poc_root }}/stacks/{{ service_id }}"
+    requested_size: "{{ taille | default('petite') }}"
+
+  environment:
+    HOME: "{{ poc_root }}"
+    TF_IN_AUTOMATION: "1"
+    TF_INPUT: "0"
+    TF_PLUGIN_CACHE_DIR: "{{ poc_root }}/plugin-cache"
+
+  tasks:
+    - name: Vérifier la demande
+      ansible.builtin.assert:
+        that:
+          - manageiq is defined
+          - manageiq.service is defined
+          - vm_name is defined
+          - vm_name is match('^[a-z0-9][a-z0-9-]{1,38}[a-z0-9]$')
+          - requested_size in ['petite', 'moyenne', 'grande']
+        fail_msg: >-
+          Demande invalide : le nom doit contenir 3 à 40 caractères (minuscules, chiffres, tirets)
+          et la taille doit être petite, moyenne ou grande.
+        quiet: true
+
+    - name: Créer le dossier du service
+      ansible.builtin.file:
+        path: "{{ stack_dir }}"
+        state: directory
+        mode: "0750"
+
+    - name: Copier le template OpenTofu
+      ansible.builtin.copy:
+        src: "{{ playbook_dir }}/templates/nutanix-vm/"
+        dest: "{{ stack_dir }}/"
+        mode: "0640"
+        directory_mode: "0750"
+
+    - name: Enregistrer les valeurs demandées
+      ansible.builtin.copy:
+        content: "{{ {'vm_name': vm_name, 'taille': requested_size} | to_nice_json }}\n"
+        dest: "{{ stack_dir }}/terraform.tfvars.json"
+        mode: "0640"
+
+    - name: Initialiser OpenTofu
+      ansible.builtin.command:
+        argv: ["{{ tofu_bin }}", init, -no-color]
+        chdir: "{{ stack_dir }}"
+      changed_when: false
+
+    - name: Créer la VM
+      ansible.builtin.command:
+        argv: ["{{ tofu_bin }}", apply, -auto-approve, -no-color]
+        chdir: "{{ stack_dir }}"
+      register: tofu_apply
+      changed_when: "'0 added, 0 changed, 0 destroyed' not in tofu_apply.stdout"
+
+    - name: Lire le résultat
+      ansible.builtin.command:
+        argv: ["{{ tofu_bin }}", output, -json, -no-color]
+        chdir: "{{ stack_dir }}"
+      register: tofu_output
+      changed_when: false
+
+    - name: Afficher le résultat
+      ansible.builtin.debug:
+        msg: "{{ tofu_output.stdout | from_json }}"
