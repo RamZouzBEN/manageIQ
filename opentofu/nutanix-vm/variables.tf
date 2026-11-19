@@ -80,3 +80,12 @@ variable "agent_public_key" {
   description = "Clé SSH publique de l'agent du portail"
   default     = ""
 }
+
+variable "categories" {
+  type = list(object({
+    name  = string
+    value = string
+  }))
+  description = "Catégories Prism Central de la VM, par exemple celle d'une politique de sauvegarde"
+  default     = []
+}

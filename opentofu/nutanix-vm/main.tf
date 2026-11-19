@@ -33,6 +33,15 @@ resource "nutanix_virtual_machine" "vm" {
   boot_type              = var.boot_type
   boot_device_order_list = var.boot_type == "LEGACY" ? ["DISK", "CDROM", "NETWORK"] : null
 
+  # Catégories Prism Central, par exemple celle d'une politique de sauvegarde
+  dynamic "categories" {
+    for_each = var.categories
+    content {
+      name  = categories.value.name
+      value = categories.value.value
+    }
+  }
+
   disk_list {
     disk_size_mib = local.size.disk_gib * 1024
 
